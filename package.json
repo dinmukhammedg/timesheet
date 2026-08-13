@@ -1,0 +1,8 @@
+{
+  "name": "timesheet-automation",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "run": "node scripts/timesheet-automation.js"
+  }
+}
