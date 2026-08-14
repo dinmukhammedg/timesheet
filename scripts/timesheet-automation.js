@@ -2,11 +2,48 @@ const { spawnSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const { chromium } = require("C:/Users/diman/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
+function resolvePlaywright() {
+  try {
+    return require("playwright");
+  } catch (_) {
+    const bundled = path.join(
+      "C:",
+      "Users",
+      "diman",
+      ".cache",
+      "codex-runtimes",
+      "codex-primary-runtime",
+      "dependencies",
+      "node",
+      "node_modules",
+      "playwright"
+    );
+    return require(bundled);
+  }
+}
+
+const { chromium } = resolvePlaywright();
 
 const WORKBOOK = process.argv[2];
 const BASE_URL = "https://ims.go1.kworld.kpmg.com";
 const PROFILE_DIR = path.join(process.cwd(), "automation-profile");
+const PYTHON_CANDIDATES = [
+  process.env.PYTHON,
+  "python",
+  "python3",
+  "py",
+  path.join(
+    "C:",
+    "Users",
+    "diman",
+    ".cache",
+    "codex-runtimes",
+    "codex-primary-runtime",
+    "dependencies",
+    "python",
+    "python.exe"
+  ),
+].filter(Boolean);
 
 function fail(message) {
   console.error(message);
@@ -16,11 +53,17 @@ function fail(message) {
 if (!WORKBOOK) fail("Usage: node scripts/timesheet-automation.js <workbook.xlsx>");
 if (!fs.existsSync(WORKBOOK)) fail(`Workbook not found: ${WORKBOOK}`);
 
-const parsed = spawnSync(
-  "C:/Users/diman/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe",
-  [path.join(__dirname, "parse_excel.py"), WORKBOOK],
-  { encoding: "utf8" }
-);
+function runPython(scriptPath, args) {
+  for (const candidate of PYTHON_CANDIDATES) {
+    const probe = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    if (probe.status === 0) {
+      return spawnSync(candidate, [scriptPath, ...args], { encoding: "utf8" });
+    }
+  }
+  return { status: 1, stderr: "Python was not found. Set PYTHON or install python." };
+}
+
+const parsed = runPython(path.join(__dirname, "parse_excel.py"), [WORKBOOK]);
 if (parsed.status !== 0) fail(parsed.stderr || parsed.stdout || "Failed to parse workbook");
 
 const payload = JSON.parse(parsed.stdout);
@@ -85,7 +128,7 @@ async function fillProjectRow(page, code, hoursByDay) {
 
     const cellCandidates = page
       .locator("input, textarea, [contenteditable='true']")
-      .filter({ has: page.getByText(new RegExp(`^${day.slice(0, 3)}`, "i")) });
+      .filter({ hasText: new RegExp(day.slice(0, 3), "i") });
 
     if (await cellCandidates.count()) {
       const cell = cellCandidates.first();
@@ -119,7 +162,7 @@ async function run() {
   const currentMonthText = await page.locator("text=/Current timesheet/i").first().textContent().catch(() => "");
   console.log(`Current timesheet panel: ${currentMonthText || "not detected"}`);
 
-  const monthCard = page.getByRole("button", { name: /open/i }).first();
+  const monthCard = page.getByRole("button", { name: /^open$/i }).first();
   if (await monthCard.count()) {
     await monthCard.click();
   }
