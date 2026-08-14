@@ -6,19 +6,46 @@ function resolvePlaywright() {
   try {
     return require("playwright");
   } catch (_) {
-    const bundled = path.join(
-      "C:",
-      "Users",
-      "diman",
-      ".cache",
-      "codex-runtimes",
-      "codex-primary-runtime",
-      "dependencies",
-      "node",
-      "node_modules",
-      "playwright"
+    const candidates = [];
+    const userProfile = process.env.USERPROFILE;
+    if (userProfile) {
+      candidates.push(
+        path.join(
+          userProfile,
+          ".cache",
+          "codex-runtimes",
+          "codex-primary-runtime",
+          "dependencies",
+          "node",
+          "node_modules",
+          "playwright"
+        )
+      );
+    }
+    try {
+      for (const entry of fs.readdirSync("C:\\Users", { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        candidates.push(
+          path.join(
+            "C:\\Users",
+            entry.name,
+            ".cache",
+            "codex-runtimes",
+            "codex-primary-runtime",
+            "dependencies",
+            "node",
+            "node_modules",
+            "playwright"
+          )
+        );
+      }
+    } catch (_) {}
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return require(candidate);
+    }
+    throw new Error(
+      "Playwright is not installed. Install it in this environment or run from a Codex runtime that provides it."
     );
-    return require(bundled);
   }
 }
 
@@ -32,17 +59,6 @@ const PYTHON_CANDIDATES = [
   "python",
   "python3",
   "py",
-  path.join(
-    "C:",
-    "Users",
-    "diman",
-    ".cache",
-    "codex-runtimes",
-    "codex-primary-runtime",
-    "dependencies",
-    "python",
-    "python.exe"
-  ),
 ].filter(Boolean);
 
 function fail(message) {
@@ -57,6 +73,43 @@ function runPython(scriptPath, args) {
   for (const candidate of PYTHON_CANDIDATES) {
     const probe = spawnSync(candidate, ["--version"], { encoding: "utf8" });
     if (probe.status === 0) {
+      return spawnSync(candidate, [scriptPath, ...args], { encoding: "utf8" });
+    }
+  }
+  const userProfile = process.env.USERPROFILE;
+  const extras = [];
+  if (userProfile) {
+    extras.push(
+      path.join(
+        userProfile,
+        ".cache",
+        "codex-runtimes",
+        "codex-primary-runtime",
+        "dependencies",
+        "python",
+        "python.exe"
+      )
+    );
+  }
+  try {
+    for (const entry of fs.readdirSync("C:\\Users", { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      extras.push(
+        path.join(
+          "C:\\Users",
+          entry.name,
+          ".cache",
+          "codex-runtimes",
+          "codex-primary-runtime",
+          "dependencies",
+          "python",
+          "python.exe"
+        )
+      );
+    }
+  } catch (_) {}
+  for (const candidate of extras) {
+    if (fs.existsSync(candidate)) {
       return spawnSync(candidate, [scriptPath, ...args], { encoding: "utf8" });
     }
   }
